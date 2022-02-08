@@ -1,3 +1,11 @@
+# Native Python modules
+import unittest
+import datetime as dt
+import json
+
+# Local modules
+from base.curve import Curve, Spot
+
 # Define a Forward Rate Agreement as an object template
 class FRA:
     def __init__(self, notional: float, d_maturity: dt.date, d_settle: dt.date, rate: IR) -> None:
@@ -35,6 +43,6 @@ class TestFRA(unittest.TestCase):
         fra = FRA(1e6, dt.date(2019,6,3), dt.date(2019,3,4), IR(0.111))        
         print(f'FRA_value Long:{fra.value(zcurve, dt.date(2019,2,4))}')
         print(f'FRA_value Shrt:{fra.value(zcurve, dt.date(2019,2,4),-1)}')
-        
-        
+
+
 unittest.main(TestFR(), argv=[''], verbosity=2, exit=False)

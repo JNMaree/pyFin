@@ -1,4 +1,14 @@
+# Native Python modules
 import unittest
+import enum
+import datetime as dt
+
+# External modules
+import numpy as np
+import holidays
+
+# Local modules
+import base.day
 
 # Define all the Day Count Conventions (DCCs)
 class DCC(enum.Enum):
@@ -57,9 +67,7 @@ def day_count_factor(day_1: dt.date, day_2: dt.date, dcc: DCC = DCC.ACT_365) -> 
 
     else:
         raise TypeError(f"{dcc} is of Unknown DCC Type.")
-        
-        
-import unittest
+
 
 # Define all the Day Count Conventions (DCCs)
 class DCC(enum.Enum):
@@ -70,6 +78,7 @@ class DCC(enum.Enum):
     B30_60 = 3
     BONDS_BASIS = B30_60
     B30_360E = 4
+
 
 #   - Return TRUE if leap year
 #   - Return FALSE if not leap year
@@ -119,6 +128,46 @@ def day_count_factor(day_1: dt.date, day_2: dt.date, dcc: DCC = DCC.ACT_365) -> 
     else:
         raise TypeError(f"{dcc} is of Unknown DCC Type.")
         
+# Define all the valid business day (VBD) conventions
+class BDC(enum.Enum):
+    NO_ADJUSTMENT = -1
+    FOLLOWING = 0
+    PRECEDING = 1
+    MOD_FOLLOWING = 2
+
+# Get the day of the week (dow): int form:
+#   - returns an integer representing the day of the week
+#       0 = Mon
+#       1 = Tues ...
+#       6 = Sun
+def dow_int(day_date: dt.date) -> int:
+    return day_date.weekday()
+
+# Get the day of the week (dow): str form:
+#   - Returns string of name of day
+def dow_str(day_date) -> str:
+    return day_date.strftime("%A")
+
+# Get the next valid business day based off the desired input day
+def valid_business_day(d_day: dt.date, bdc: BDC) -> dt.date:
+    dow = dow_int(d_day)
+    hol = d_day in holidays.SouthAfrica(years=d_day.year)
+    #print(f'{d_day} dow:{dow} hol:{hol}')
+    if dow > 4 or hol:
+        if bdc == BDC.NO_ADJUSTMENT:
+            return d_day
+        if bdc == BDC.FOLLOWING:
+            return valid_business_day(d_day + dt.timedelta(days=1), bdc)
+        elif bdc == BDC.PRECEDING:
+            return valid_business_day(d_day - dt.timedelta(days=1), bdc)
+        elif bdc == BDC.MOD_FOLLOWING:
+            vbd_fol = valid_business_day(d_day + dt.timedelta(days=1), bdc)
+            if vbd_fol.month != d_day.month:
+                return valid_business_day(d_day - dt.timedelta(days=1), BDC.PRECEDING)
+            else:
+                return vbd_fol
+    else:
+        return d_day
 
 # Generate a chronological cash-flow schedule for the specified:
 #   - maturity date, 
@@ -171,6 +220,42 @@ class TestDCC(unittest.TestCase):
         self.assertEqual(day_count_factor(dt.date(2023, 2, 16), dt.date(2025, 3, 1), DCC.ACT_365), 319/365 + 1 + 59/365)
 
 unittest.main(TestDCC(), argv=[''], verbosity=2, exit=False)     # Call the unit test function
+
+class TestVBD(unittest.TestCase):
+    def test_valid_business_day(self):
+        # Test Weekends as dates
+        self.assertEqual(valid_business_day(dt.date(2022,1,17), BDC.FOLLOWING), dt.date(2022,1,17))         # Mon -ret Mon
+        self.assertEqual(valid_business_day(dt.date(2022,1,17), BDC.PRECEDING), dt.date(2022,1,17))
+        self.assertEqual(valid_business_day(dt.date(2022,1,17), BDC.MOD_FOLLOWING), dt.date(2022,1,17))
+
+        self.assertEqual(valid_business_day(dt.date(2022,1,21), BDC.FOLLOWING), dt.date(2022,1,21))         # Fri -ret Fri
+        self.assertEqual(valid_business_day(dt.date(2022,1,21), BDC.PRECEDING), dt.date(2022,1,21))
+        self.assertEqual(valid_business_day(dt.date(2022,1,21), BDC.MOD_FOLLOWING), dt.date(2022,1,21))
+
+        self.assertEqual(valid_business_day(dt.date(2022,1,22), BDC.FOLLOWING), dt.date(2022,1,24))         # Sat -ret Mon
+        self.assertEqual(valid_business_day(dt.date(2022,1,22), BDC.MOD_FOLLOWING), dt.date(2022,1,24))
+        self.assertEqual(valid_business_day(dt.date(2022,1,22), BDC.PRECEDING), dt.date(2022,1,21))         # Sat -ret Fri
+        self.assertEqual(valid_business_day(dt.date(2022,1,23), BDC.FOLLOWING), dt.date(2022,1,24))         # Sun -ret Mon
+        self.assertEqual(valid_business_day(dt.date(2022,1,23), BDC.MOD_FOLLOWING), dt.date(2022,1,24))
+        self.assertEqual(valid_business_day(dt.date(2022,1,23), BDC.PRECEDING), dt.date(2022,1,21))         # Sun -ret Fri
+        
+        # Test end of month for MOD_FOLLOWING
+        self.assertEqual(valid_business_day(dt.date(2022,4,30), BDC.FOLLOWING), dt.date(2022,5,3))          # Sat -ret Tue
+        self.assertEqual(valid_business_day(dt.date(2022,4,30), BDC.MOD_FOLLOWING), dt.date(2022,4,29))     # Sat -ret Fri
+        self.assertEqual(valid_business_day(dt.date(2022,7,31), BDC.FOLLOWING), dt.date(2022,8,1))          # Sun -ret Mon
+        self.assertEqual(valid_business_day(dt.date(2022,7,31), BDC.MOD_FOLLOWING), dt.date(2022,7,29))     # Sun -ret Fri
+
+        # Test Holidays as dates
+        # 27 April 2022 (Wednesday) - Freedom Day
+        self.assertEqual(valid_business_day(dt.date(2022,4,27), BDC.FOLLOWING), dt.date(2022,4,28))         # Wed -ret Thu
+        self.assertEqual(valid_business_day(dt.date(2022,4,27), BDC.PRECEDING), dt.date(2022,4,26))         # Wed -ret Tue
+        self.assertEqual(valid_business_day(dt.date(2022,4,27), BDC.MOD_FOLLOWING), dt.date(2022,4,28))     # Wed -ret Thu
+        # 1 May 2022 (Falls on Sunday, Monday becomes holiday) - Workers Day
+        self.assertEqual(valid_business_day(dt.date(2022,5,1), BDC.FOLLOWING), dt.date(2022,5,3))           # Sun -ret Tue
+        self.assertEqual(valid_business_day(dt.date(2022,5,1), BDC.PRECEDING), dt.date(2022,4,29))          # Sun -ret Fri
+        self.assertEqual(valid_business_day(dt.date(2022,5,1), BDC.MOD_FOLLOWING), dt.date(2022,5,3))       # Sun -ret Tue
+
+unittest.main(TestVBD(), argv=[''], verbosity=2, exit=False)     # Call the unit test function
 
 # Implement native unit testing framework to execute test cases & verify results.
 class TestDCC(unittest.TestCase):

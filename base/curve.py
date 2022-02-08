@@ -1,3 +1,13 @@
+# Native Python modules
+import datetime as dt
+
+# External Modules
+import matplotlib.pyplot as plt
+
+# Local modules
+from base.ir import IR
+from base.interpolate import lerp
+
 # Define the spot rates at certain specified dates of a curve
 class Spot:
     def __init__(self, d_tenor: dt.date, y_frac: float, inst: str, interest_rate: IR) -> None:

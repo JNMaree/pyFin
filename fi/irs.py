@@ -1,3 +1,11 @@
+# Native Python modules
+import datetime as dt
+import unittest
+
+# Local modules
+from base.curve import Curve,  Spot
+from base.day import day_count_factor, gen_cf_schedule
+
 # Define an Interest Rate swap as an object template
 class IRS:
     def __init__(self, nom: float, schedule: list[dt.date], fix_rate: float) -> None:
